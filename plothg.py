@@ -7,7 +7,6 @@ from matplotlib.text import Text
 import matplotlib.animation as animation
 from functools import partial
 import random
-import logging
 
 random.seed(2)
 
