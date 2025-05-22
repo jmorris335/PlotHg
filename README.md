@@ -1,6 +1,6 @@
 # PlotHg
 This is a simple plotting tool for visualizing a simulation of a 
-Hypergraph. Plotting is done in matplotlib using blitting.
+Hypergraph. Plotting is done using matplotlib.
 
 https://github.com/user-attachments/assets/f0bfa7a9-e35c-4db2-86b5-aca5a4eafdc3
 

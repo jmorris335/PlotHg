@@ -316,7 +316,7 @@ def animate_hg(fig, ax: Axes, tnodes: list, inputs: list, output: str,
                      text=text_box,
                      solved_nodes=solved_nodes,
                      ps=ps),
-        frames=len(tnodes)+1, interval=interval, blit=True, repeat=False)
+        frames=len(tnodes)+1, interval=interval, blit=False, repeat=False)
     return ani
 
 def color_active_tnode(frame: int, tnodes: list, inputs: list, output: str, 
@@ -325,10 +325,11 @@ def color_active_tnode(frame: int, tnodes: list, inputs: list, output: str,
     """Colors the path to the TNode in the plot."""
     mod_patches = []
     try:
-        restore_plot(circles, lines, inputs, solved_nodes, ps)
+        # solved_nodes = [t.node_label for t in tnodes[:max(0,frame-1)]]
+        mod_patches.extend(restore_plot(circles, lines, inputs, tnodes[max(0,frame-1)], ps))
         t = tnodes[frame]
     except IndexError:
-        mod_patches.extend(color_path(tnodes[-1], circles, lines, text, ps))
+        mod_patches.extend(color_path(tnodes[-1], circles, lines, ps))
         mod_patches.append(color_patch('node_output_solved', ps, circles[output]))
         text.set_text(f'Output solved.')
         mod_patches.append(text)
@@ -338,28 +339,22 @@ def color_active_tnode(frame: int, tnodes: list, inputs: list, output: str,
     mod_patches.append(color_patch('node_target', ps, circles[t.node_label]))
 
     if t.gen_edge_label is not None:
-        mod_patches.extend(color_path(t, circles, lines, text, ps))
-    
+        mod_patches.extend(color_path(t, circles, lines, ps))
+        text.set_text(f'Current Node: {t.node_label}, Current Edge: {get_line_label(t)}') 
     else:
-        text.set_text(f'Current Node: {t.node_label}, Current Edge: ')
-
-    solved_nodes.append(t.node_label)
+        text.set_text(f'Input Node: {t.node_label}')
 
     return mod_patches
 
 def restore_plot(circles: dict, lines: dict, inputs: list, 
-                 solved_nodes: list, ps: PlotSettings):
+                 prev_t: TNode, ps: PlotSettings):
     """Clears active lines and nodes from plot."""
     mod_patches = []
     for line in lines.values():
         mod_patches.append(color_patch('edge_default', ps, line))
 
-    for label in [key for key in circles]:
-        circle = circles[label]
-        if label in inputs:
-            mod_patches.append(color_patch('node_input', ps, circle))
-        elif label in solved_nodes:
-            mod_patches.append(color_patch('node_solved', ps, circle))
+    mod_patches.append(color_patch('node_solved', ps, circles[prev_t.node_label]))
+    mod_patches.extend(color_node_children(prev_t, circles, lines, ps, color_edge=False))
     
     return mod_patches
     
@@ -369,9 +364,7 @@ def get_line_label(tnode: TNode)-> str:
     label = tnode.gen_edge_label.split('#')[0]
     return label
 
-def color_path(t:TNode, circles: dict, lines: dict, text: Text, 
-               ps: PlotSettings)-> list:
-    text.set_text(f'Current Node: {t.node_label}, Current Edge: {get_line_label(t)}') 
+def color_path(t:TNode, circles: dict, lines: dict, ps: PlotSettings)-> list:
     mod_patches = [color_patch('edge_active', ps, lines[get_line_label(t)])]
 
     for child in t.children:
@@ -380,7 +373,8 @@ def color_path(t:TNode, circles: dict, lines: dict, text: Text,
 
     return mod_patches
 
-def color_node_children(tnode: TNode, circles, lines, ps, seen: list=None)-> list:
+def color_node_children(tnode: TNode, circles, lines, ps, seen: list=None, 
+                        color_edge: bool=True)-> list:
     """Recursive caller coloring the children of `tnode` as found nodes."""
     if seen is None: 
         seen = []
@@ -390,11 +384,12 @@ def color_node_children(tnode: TNode, circles, lines, ps, seen: list=None)-> lis
     out = []
 
     if tnode.gen_edge_label is not None:
-        out.append(color_patch('edge_solved', ps, lines[get_line_label(tnode)]))
+        if color_edge:
+            out.append(color_patch('edge_solved', ps, lines[get_line_label(tnode)]))
 
         for child in tnode.children:
             out.append(color_patch('node_solved', ps, circles[child.node_label]))
-            out.extend(color_node_children(child, circles, lines, ps))
+            out.extend(color_node_children(child, circles, lines, ps, seen, color_edge))
     
     return out
 
