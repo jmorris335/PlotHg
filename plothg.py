@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
+from matplotlib.text import Text
 import matplotlib.animation as animation
 from functools import partial
 import random
@@ -90,6 +91,15 @@ class PlotSettings:
             jitter_rate = 0.1
         )
 
+        self.text = dict(
+            x=0, 
+            y=0,
+            s='',
+            ha='left',
+            va='bottom',
+            fontsize=10,
+        )
+
         self.settings = dict(
             figsize = (10, 8),
             layout = 'constrained'
@@ -114,11 +124,19 @@ def plot_simulation(hg: Hypergraph, ps: PlotSettings, inputs: dict, output: Node
         for more information.
     """
     fig, ax = plt.subplots(**ps.settings)
+    text_box = create_textbox(ax, ps)
     tnodes = sim_hg(hg, inputs, output, **kwargs)
     circles, lines = initialize_hg(hg, ax, inputs, output, ps)
     ani = animate_hg(fig, ax, tnodes, list(inputs.keys()), str(output), 
-                     circles, lines, ps)
+                     circles, lines, text_box, ps)
     show_plot(ax)
+
+def create_textbox(ax: Axes, ps: PlotSettings)-> Text:
+    """Creates a text box below the plot."""
+    props = ps.text
+    props.update(s='', transform=ax.transAxes)
+    text_box = ax.text(**props)
+    return text_box
 
 def show_plot(ax: Axes):
     """Configures and displays the plot."""
@@ -178,7 +196,6 @@ def plot_nodes(hg: Hypergraph, ax: Axes, inputs: dict, output: Node, ps: PlotSet
     output_center = (max(x_centers) + ps.spacing['x_spacing'], 
                      sum(y_centers) / len(y_centers))
     output_circle = plot_circle('node_output', ps, output_center)
-    # output_circle = plot_output(plotted_nodes, str(output), ps)
     plotted_nodes[str(output)] = ax.add_patch(output_circle)
 
     return plotted_nodes
@@ -284,61 +301,84 @@ def plot_edge(edge: Edge, ax: Axes, plotted_nodes: dict, ps: PlotSettings):
 
 
 def animate_hg(fig, ax: Axes, tnodes: list, inputs: list, output: str, 
-               circles: dict, lines: dict, ps: PlotSettings):
+               circles: dict, lines: dict, text_box: Text, ps: PlotSettings):
     """Animates a simulation of the hypergraph."""
     interval = ps.spacing.get('interval', 500 if len(tnodes) < 50 else 100)
-
-    tnodes_iter = iter(tnodes)
-    modified_patches = set()
+    solved_nodes = []
 
     ani = animation.FuncAnimation(
         fig, partial(color_active_tnode,
-                     t_iter=tnodes_iter,
+                     tnodes=tnodes,
                      inputs=inputs,
                      output=output,
                      circles=circles, 
                      lines=lines,
-                     mod_patches = modified_patches,
+                     text=text_box,
+                     solved_nodes=solved_nodes,
                      ps=ps),
-        frames=len(tnodes)-1, interval=interval, blit=True)
+        frames=len(tnodes)+1, interval=interval, blit=True, repeat=False)
     return ani
 
-def color_active_tnode(frame: int, t_iter, inputs: list, output: str, 
-                       circles: dict, lines: dict, 
-                       mod_patches: set, ps: PlotSettings)-> list:
+def color_active_tnode(frame: int, tnodes: list, inputs: list, output: str, 
+                       circles: dict, lines: dict, text: Text,
+                       solved_nodes: list, ps: PlotSettings)-> list:
     """Colors the path to the TNode in the plot."""
+    mod_patches = []
     try:
-        t = next(t_iter)
-    except StopIteration:
-        color_patch('node_output_solved', ps, circles[output])
+        restore_plot(circles, lines, inputs, solved_nodes, ps)
+        t = tnodes[frame]
+    except IndexError:
+        mod_patches.extend(color_path(tnodes[-1], circles, lines, text, ps))
+        mod_patches.append(color_patch('node_output_solved', ps, circles[output]))
+        text.set_text(f'Output solved.')
+        mod_patches.append(text)
         return mod_patches
-    
-    for line in lines.values():
-        color_patch('edge_default', ps, line)
-    for label in [key for key in circles]:
-        circle = circles[label]
-        if circle not in mod_patches:
-            continue
-        if label in inputs:
-            color_patch('node_input', ps, circle)
-        color_patch('node_solved', ps, circle)
 
-    
-    mod_patches.add(color_patch('node_target', ps, circles[t.node_label]))
+    mod_patches.append(text)
+    mod_patches.append(color_patch('node_target', ps, circles[t.node_label]))
 
     if t.gen_edge_label is not None:
-        mod_patches.add(color_patch('edge_active', ps, lines[get_line_label(t)]))
+        mod_patches.extend(color_path(t, circles, lines, text, ps))
+    
+    else:
+        text.set_text(f'Current Node: {t.node_label}, Current Edge: ')
 
-        for child in t.children:
-            mod_patches.add(color_patch('node_source', ps, circles[child.node_label]))
-            mod_patches.update(color_node_children(child, circles, lines, ps))
+    solved_nodes.append(t.node_label)
 
-    return set(mod_patches)
+    return mod_patches
+
+def restore_plot(circles: dict, lines: dict, inputs: list, 
+                 solved_nodes: list, ps: PlotSettings):
+    """Clears active lines and nodes from plot."""
+    mod_patches = []
+    for line in lines.values():
+        mod_patches.append(color_patch('edge_default', ps, line))
+
+    for label in [key for key in circles]:
+        circle = circles[label]
+        if label in inputs:
+            mod_patches.append(color_patch('node_input', ps, circle))
+        elif label in solved_nodes:
+            mod_patches.append(color_patch('node_solved', ps, circle))
+    
+    return mod_patches
+    
 
 def get_line_label(tnode: TNode)-> str:
     """Returns the label of the edge as stored in the edge."""
     label = tnode.gen_edge_label.split('#')[0]
     return label
+
+def color_path(t:TNode, circles: dict, lines: dict, text: Text, 
+               ps: PlotSettings)-> list:
+    text.set_text(f'Current Node: {t.node_label}, Current Edge: {get_line_label(t)}') 
+    mod_patches = [color_patch('edge_active', ps, lines[get_line_label(t)])]
+
+    for child in t.children:
+        mod_patches.append(color_patch('node_source', ps, circles[child.node_label]))
+        mod_patches.extend(color_node_children(child, circles, lines, ps))
+
+    return mod_patches
 
 def color_node_children(tnode: TNode, circles, lines, ps, seen: list=None)-> list:
     """Recursive caller coloring the children of `tnode` as found nodes."""
