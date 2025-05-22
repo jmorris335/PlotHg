@@ -126,7 +126,7 @@ def plot_simulation(hg: Hypergraph, ps: PlotSettings, inputs: dict, output: Node
     text_box = create_textbox(ax, ps)
     tnodes = sim_hg(hg, inputs, output, **kwargs)
     circles, lines = initialize_hg(hg, ax, inputs, output, ps)
-    ani = animate_hg(fig, ax, tnodes, list(inputs.keys()), str(output), 
+    ani = animate_hg(fig, ax, tnodes, list(inputs.keys()), get_node_label(output), 
                      circles, lines, text_box, ps)
     show_plot(ax)
 
@@ -182,7 +182,7 @@ def plot_nodes(hg: Hypergraph, ax: Axes, inputs: dict, output: Node, ps: PlotSet
         plotted_nodes[input] = ax.add_patch(plot_circle('node_input', ps, center))
     
     unplotted = [label for label in hg.nodes if label not in inputs]
-    unplotted.remove(str(output))
+    unplotted.remove(get_node_label(output))
     curr_node = list(inputs.keys())[-1]
 
     while len(unplotted) > 0:
@@ -195,7 +195,7 @@ def plot_nodes(hg: Hypergraph, ax: Axes, inputs: dict, output: Node, ps: PlotSet
     output_center = (max(x_centers) + ps.spacing['x_spacing'], 
                      sum(y_centers) / len(y_centers))
     output_circle = plot_circle('node_output', ps, output_center)
-    plotted_nodes[str(output)] = ax.add_patch(output_circle)
+    plotted_nodes[get_node_label(output)] = ax.add_patch(output_circle)
 
     return plotted_nodes
 
@@ -357,6 +357,13 @@ def restore_plot(circles: dict, lines: dict, inputs: list,
     
     return mod_patches
     
+def get_node_label(node)-> str:
+    """Gets the label of the node for various types."""
+    if isinstance(node, Node):
+        return node.label
+    if isinstance(node, TNode):
+        return node.node_label
+    return str(node)
 
 def get_line_label(tnode: TNode)-> str:
     """Returns the label of the edge as stored in the edge."""
