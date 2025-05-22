@@ -2,6 +2,8 @@
 This is a simple plotting tool for visualizing a simulation of a 
 Hypergraph. Plotting is done in matplotlib using blitting.
 
+https://github.com/user-attachments/assets/f0bfa7a9-e35c-4db2-86b5-aca5a4eafdc3
+
 ## To Use
 You'll need to install [ConstraintHg](https://constrainthg.readthedocs.io/en/latest/index.html)
 to use the package.
